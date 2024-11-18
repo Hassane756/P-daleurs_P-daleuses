@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Carte Interactive des Pistes Cyclables de Strasbourg</title>
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+
+        <style>
+            /* Styles existants */
+            /* ... */
+            body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 0;
+                display: flex;
+                height: 100vh;
+                flex-direction: column;
+            }
+
+            #map-container {
+                display: flex;
+                width: 100%;
+                height: 100%;
+            }
+
+            #map {
+                flex:11;
+                width: 100%; /* La carte prend 100% de la largeur */
+                height: 100%;
+            }
+
+            #sidebar {
+                width: 300px; /* Largeur du panneau latéral */
+                height: 100%;
+                background-color: #333;
+                color: white;
+                position: fixed; /* Fixe à gauche */
+                top: 0;
+                left: -300px; /* Masque le panneau latéral par défaut */
+                z-index: 1000;
+                padding-top: 60px;
+                transition: left 0.3s ease; /* Transition pour l'animation */
+            }
+
+            #sidebar ul {
+                list-style-type: none;
+                padding: 0;
+            }
+
+            #sidebar ul li {
+                padding: 10px;
+                text-align: center;
+                cursor: pointer;
+            }
+
+            #sidebar ul li:hover {
+                background-color: #575757;
+            }
+
+            #title {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                text-align: center;
+                font-size: 36px;
+                font-weight: bold;
+                padding: 8px;
+                background-color: #E63746;
+                color: white;
+                z-index: 1001;
+            }
+
+            .open-btn {
+                position: fixed;
+                top: 20px;
+                left: 20px;
+                background-color: #E63746;
+                color: white;
+                padding: 10px;
+                border: none;
+                cursor: pointer;
+                z-index: 1002; /* S'assure que le bouton est au-dessus de tout */
+            }
+
+            /* Style pour le tutoriel */
+            .tutorial {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 42em;
+                max-width: 100%;
+                padding: 0 0 1.25em;
+                width: 100%;
+                height: 100vh;
+                background-color: rgba(0, 0, 0, 0.8);
+                color: white;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                z-index: 1000;
+                font-size: 1.5em;
+            }
+
+            .tutorial-slide {
+                display: none;
+                text-align: center;
+            }
+
+            .tutorial-slide.active {
+                display: block;
+            }
+
+            button {
+                padding: 10px 20px;
+                font-size: 16px;
+                margin-top: 20px;
+                cursor: pointer;
+            }
+
+            .stats {
+                position: fixed;
+                bottom: 0;
+                width: 100%;
+                background-color: white;
+                display: none;
+            }
+
+            #close-btn {
+                position: absolute;
+                top: 50px;
+                right: 02px;
+                font-size: 24px;
+                cursor: pointer;
+            }
+            
+            .legend h4 {
+                font-size: 17px;
+                color: #555; /* Couleur plus douce pour la légende */
+                text-align: center; /* Centre le titre dans la légende */
+                padding: 4px 0; /* Réduit le padding pour la légende */
+                margin-bottom: 0px; /* Ajoute un espacement après le titre */
+            }
+            
+            /* Style pour la légende */
+            .info.legend {
+                background-color: white;
+                top: 30px;                
+                padding: 6px;
+                border-radius: 5px;
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+                font-size: 15px;
+                line-height: 20px;
+                color: #555;
+                width: 250px;
+            }
+
+            /* Style pour les éléments de la légende (carrés colorés) */
+            .info.legend i {
+                width: 20px;
+                height: 18px;
+                font-size: 14px;
+                border-radius: 3px;
+                margin-right: 5px;
+                display: inline-block;
+                vertical-align: middle;
+            }
+            #back-to-map {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 1000;
+                display: none;
+            }
+            
+            .tableauPlaceholder {
+                flex:6;
+                position: fixed;
+                top: 48px; /* Ajustez cette valeur en fonction de la hauteur de votre titre */
+                left: 0;
+                width: 25%;
+                height: calc(100% - 48px); /* Soustrait la hauteur du titre de la hauteur totale */
+                z-index: 1000;
+                display: none;
+                overflow-y: auto; /* Permet le défilement vertical si nécessaire */
+            }
+            #stats-container {
+                width: 25%;
+                height: 100vh;
+                position: fixed;
+                top: 0;
+                right: 0;
+                background-color: white;
+                z-index: 1000;
+                display: none;
+                overflow: auto;
+            }
+
+            #stats-content {
+                width: 100%;
+                height: 100%;
+            }
+            .tutorial-swal-popup {
+                background-color: #f8f9fa;
+                border-radius: 15px;
+            }
+
+            .tutorial-swal-popup {
+                background-color: #f8f9fa;
+                border-radius: 15px;
+        }
+
+            .tutorial-swal-title {
+                    color: #343a40;
+                    font-size: 24px;
+            }
+
+            .tutorial-swal-content {
+                color: #6c757d;
+                font-size: 18px;
+            }
+
+            .tutorial-swal-confirm {
+                background-color: #28a745 !important;
+            }
+
+            .tutorial-swal-cancel {
+                background-color: #dc3545 !important;
+            }
+
+            .tutorial-swal-icon {
+                border-color: #007bff;
+            }
+
+            #filter-control {
+                position: fixed;
+                bottom: 50px;
+                right: 20px;
+                font-size: 18px;
+                z-index: 1002;
+                background-color: white;
+                padding: 10px;
+                border-radius: 5px;
+                box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            }
+
+        </style>
+    </head>
+    <body>
+        <div id="tutorial" style="display: none;">
+            <div id="tutorial-content"></div>
+            <button id="tutorial-next">Suivant</button>
+            <button id="tutorial-close">Fermer</button>
+        </div>
+        
+        <div id="title">Pédaleurs - Pédaleuses
+            <button id="tutorial-button" style="float: right; 
+            background-color: #E63746; color: white; 
+            border: none; padding: 0px 15px; cursor: pointer;">Tutoriel</button>
+        </div>
+        <div id="map-container">
+            <div id="sidebar">
+                <button id="close-btn">&times;</button>
+                <h2>Quartiers de Strasbourg</h2>
+                <ul id="quartier-list"></ul>
+            </div>
+            <div id="map" style="width: 5000px; height: 100%;">
+
+                <div id="filter-control" style="position: fixed; bottom: 50px; right: 20px; z-index: 1002; background-color: white; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.3);">
+                    <label for="filterRange">Filtrer par note :</label>
+                    <input type="range" id="filterRange" min="0" max="5" step="0.5" value="5" style="width: 400px;">
+                    <span id="rangeValue">5</span>
+                </div>
+            </div>
+
+    
+            <!-- Visualisation Tableau pour ESPLA -->
+            <div class='tableauPlaceholder' id='viz1731761660252' style='position: relative'>
+            <!-- ... contenu existant pour ESPLA ... -->
+        </div>
+        
+        <!-- Nouvelle visualisation Tableau pour Bischeim -->
+        <div class='tableauPlaceholder' id='viz1731804731218' style='position: relative; display: none;'>
+            <noscript><a href='#'><img alt='Bischeim ' src='https://public.tableau.com/static/images/ta/tableau_17315131547170/Bischeim/1_rss.png' style='border: none' /></a></noscript>
+            <object class='tableauViz' style='display:none;'>
+                <param name='host_url' value='https%3A%2F%2Fpublic.tableau.com%2F' />
+                <param name='embed_code_version' value='3' />
+                <param name='site_root' value='' />
+                <param name='name' value='tableau_17315131547170&#47;Bischeim' />
+                <param name='tabs' value='no' />
+                <param name='toolbar' value='yes' />
+                <param name='static_image' value='https://public.tableau.com/static/images/ta/tableau_17315131547170/Bischeim/1.png' />
+                <param name='animate_transition' value='yes' />
+                <param name='display_static_image' value='yes' />
+                <param name='display_spinner' value='yes' />
+                <param name='display_overlay' value='yes' />
+                <param name='display_count' value='yes' />
+                <param name='language' value='fr-FR' />
+                <param name='filter' value='publish=yes' />
+            </object>
+        </div>
+            <button id="open-sidebar" class="open-btn">Quartiers</button>
+            <button id="back-to-map" style="display: none;">Retour à la carte</button>
+        </div>
+
+        <script>
+            // Code JavaScript existant
+            // ...
+            var osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                minZoom: 5,
+                maxZoom: 19,
+                attribution: '© OpenStreetMap'
+            });
+
+            var osmHOT = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+                minZoom: 5,
+                maxZoom: 20,
+                attribution: '© OpenStreetMap contributors, Tiles style by Humanitarian OpenStreetMap Team hosted by OpenStreetMap France'
+            });
+
+            var Esri_WorldImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                minZoom: 5,
+                maxZoom: 20,
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+            });
+
+            var map = L.map('map', {
+                center: [48.5875, 7.75],
+                zoom: 13,
+                layers: [osm],
+                zoomControl: false
+            });
+            
+
+            var baseMaps = {
+                "OpenStreetMap": osm,
+                "OpenStreetMap.HOT": osmHOT,
+                "World_Imagery": Esri_WorldImagery
+            };
+            
+            /* Ajout et position du bouton de choix de fond de carte en bas a droite*/
+            L.control.layers(baseMaps, null, { position: 'bottomright' }).addTo(map);
+            
+            /* Ajout et position du bouton de zoom en bas a droite*/
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+            window.onload = function() {
+    map.invalidateSize(); // Force Leaflet à recalculer la taille de la carte
+};
+
+
+            let tutorialSlides = document.querySelectorAll('.tutorial-slide');
+            let currentSlide = 0;
+
+            function nextSlide() {
+                tutorialSlides[currentSlide].classList.remove('active');
+                currentSlide++;
+                if (currentSlide < tutorialSlides.length) {
+                    tutorialSlides[currentSlide].classList.add('active');
+                }
+            }
+
+            function closeTutorial() {
+                document.getElementById('tutorial').style.display = 'none';
+            }
+
+            let sidebar = document.getElementById('sidebar');
+            let openSidebarBtn = document.getElementById('open-sidebar');
+            let closeBtn = document.getElementById('close-btn');
+            let stats = document.getElementById('stats');
+            let statsIframe = document.getElementById('stats-iframe');
+            let quartierList = document.getElementById('quartier-list');
+
+            function showQuartierStats(quartierName) {
+                let vizContainer;
+                if (quartierName === 'ESPLA') {
+                    vizContainer = document.getElementById('viz1731681596716');
+                } else if (quartierName === 'BISCHEIM') {
+                    vizContainer = document.getElementById('viz1731682251569');
+                }
+
+                if (vizContainer) {
+                    document.getElementById('map').style.display = 'none';
+                    vizContainer.style.display = 'block';
+                    
+                    let vizElement = vizContainer.getElementsByTagName('object')[0];
+                    if (vizElement) {
+                        vizElement.style.width = '100%';
+                        vizElement.style.height = '100vh';
+                    }
+                    
+                    document.getElementById('back-to-map').style.display = 'block';
+                } else {
+                    console.log('Pas de statistiques disponibles pour ce quartier');
+                }
+            }
+
+            document.getElementById('back-to-map').addEventListener('click', () => {
+                document.getElementById('map').style.display = 'block';
+                document.getElementById('viz1731681596716').style.display = 'none';
+                document.getElementById('viz1731682251569').style.display = 'none';
+                document.getElementById('back-to-map').style.display = 'none';
+            });
+
+
+            // Modifier la fonction onEachFeature dans le chargement du GeoJSON
+            fetch('QUARTIER_4326.geojson')
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    L.geoJSON(data, {
+                        style: { color: "blue", weight: 2, fillColor: "#3388ff", fillOpacity: 0.1 },
+                        onEachFeature: function(feature, layer) {
+                            layer.bindPopup(`Nom du quartier : ${feature.properties.NOM_2 || 'Quartier inconnu'}`);
+                            
+                            let li = document.createElement('li');
+                            li.innerText = feature.properties.NOM_2 || 'Quartier inconnu';
+                            li.onclick = () => {
+                                map.fitBounds(layer.getBounds());
+                                showQuartierStats(feature.properties.NOM_2);
+                            };
+                            quartierList.appendChild(li);
+                            
+                            layer.on('click', () => {
+                                map.fitBounds(layer.getBounds());                     
+                                showQuartierStats(feature.properties.NOM_2);
+                            });
+                        }
+                    }).addTo(map);
+                })
+                .catch(error => console.error('Erreur lors du chargement du GeoJSON:', error));
+/*
+                fetch('QUARTIER_4326_tampon.geojson')
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    L.geoJSON(data, {
+                        style: { 
+                            color: "black",  // Rendre les bordures transparentes
+                            weight: 2,            // Supprime l'épaisseur des bordures
+                            fillOpacity: 0        // Rendre l'intérieur transparent
+                        },
+                        onEachFeature: function(feature, layer) {
+                            // Supprimer le bindPopup et toute interaction de clic pour ce cas
+                        }
+                    }).addTo(map);
+                })
+                .catch(error => console.error('Erreur lors du chargement du GeoJSON:', error));
+*/
+            // ...
+            fetch('RESEAU_FINAL.geojson')
+                .then(response => response.json())
+                .then(data => {
+                    const colorScale = {
+                        0: 'ff0000',
+                        1: '#d73027',
+                        1.5: '#f16051',
+                        2: '#fa907a',
+                        2.5: '#fdae61',
+                        3: '#ced7c3',
+                        3.5: '#85b294',
+                        4: '#488960',
+                        4.5: '#24693d',
+                    };
+
+                    function getLineColor(moyenne_re) {
+                        if (moyenne_re >= 4.5) return colorScale[4.5];
+                        if (moyenne_re >= 4) return colorScale[4];
+                        if (moyenne_re >= 3.5) return colorScale[3.5];
+                        if (moyenne_re >= 3) return colorScale[3];
+                        if (moyenne_re >= 2.5) return colorScale[2.5];
+                        if (moyenne_re >= 2) return colorScale[2];
+                        if (moyenne_re >= 1.5) return colorScale[1.5];
+                        if (moyenne_re >= 1) return colorScale[1];
+                        return colorScale[0];
+                    }
+
+                    let reseauLayer;
+
+                    function loadReseauLayer(filterValue) {
+                        if (reseauLayer) {
+                            map.removeLayer(reseauLayer);
+                        }
+
+                        reseauLayer = L.geoJSON(data, {
+                            style: function(feature) {
+                                let moyenne_re = feature.properties.moyenne_re || 0;
+                                if (moyenne_re <= filterValue) {
+                                    return { color: getLineColor(moyenne_re), weight: 3 };
+                                } else {
+                                    return { opacity: 0, fillOpacity: 0 }; // Masque les lignes qui ne correspondent pas
+                                }
+                            },
+                            onEachFeature: function(feature, layer) {
+                                if (feature.properties && feature.properties.moyenne_re) {
+                                    layer.bindTooltip(
+                                        `Qualité moyenne : ${feature.properties.moyenne_re}`,
+                                        { permanent: false, direction: 'auto' }
+                                    );
+                                }
+                            }
+                        }).addTo(map);
+                    }
+
+                    // Initialisation avec la valeur maximale du filtre
+                    loadReseauLayer(5);
+
+                    document.getElementById('filterRange').addEventListener('input', function() {
+                        const filterValue = parseFloat(this.value);
+                        document.getElementById('rangeValue').textContent = filterValue; // Met à jour la valeur affichée
+                        loadReseauLayer(filterValue);
+                    });
+
+                    // Ajouter la légende
+                    const legend = L.control({ position: 'topright' });
+
+                    legend.onAdd = function() {
+                        const div = L.DomUtil.create('div', 'info legend');
+
+                        // Titre de la légende
+                        div.innerHTML = '<h4>Ressenti des cyclistes</h4>';
+
+                        // Définir les catégories et les textes associés
+                        const labels = [
+                            { min: 1, max: 1.5, text: 'Médiocre' },
+                            { min: 1.5, max: 2, text: 'Mauvais' },
+                            { min: 2, max: 2.5, text: 'Faible' },
+                            { min: 2.5, max: 3, text: 'Moyen' },
+                            { min: 3, max: 3.5, text: 'Passable' },
+                            { min: 3.5, max: 4, text: 'Bon' },
+                            { min: 4, max: 4.5, text: 'Excellent' },
+                            { min: 4.5, max: 5, text: 'Exceptionnelle' }
+                        ];
+
+                        // Générer les éléments de la légende
+                        labels.forEach(function(label) {
+                            div.innerHTML +=
+                                '<i style="background:' + getLegendColor(label.min) + '"></i> ' +
+                                label.min + ' - ' + label.max + ' : ' + label.text + '<br>';
+                        });
+
+                        return div;
+                    };
+
+
+                    function getLegendColor(value) {
+                        return value >= 4.5 ? '#24693d' :
+                            value >= 4 ? '#488960' :
+                            value >= 3.5 ? '#85b294' :
+                            value >= 3 ? '#ced7c3' :
+                            value >= 2.5 ? '#fdae61' :
+                            value >= 2 ? '#fa907a' :
+                            value >= 1.5 ? '#f16051' :
+                                            '#d73027';
+                    }
+
+                    legend.addTo(map);
+                });
+
+
+
+                
+            openSidebarBtn.addEventListener('click', () => {
+                sidebar.style.left = '0'; // Affiche le panneau latéral
+            });
+            
+            closeBtn.addEventListener('click', () => {
+                sidebar.style.left = '-300px'; // Masque le panneau latéral
+            });
+
+            function zoomToQuartier(layer, statsUrl) {
+                map.fitBounds(layer.getBounds());
+                stats.style.display = 'block';
+                statsIframe.src = statsUrl;
+            }
+
+            // Script existant pour ESPLA
+            var divElement = document.getElementById('viz1731761660252');
+            // ... (reste du code pour ESPLA)
+
+            // Nouveau script pour Bischeim
+            var divElementBischeim = document.getElementById('viz1731804731218');
+            var vizElementBischeim = divElementBischeim.getElementsByTagName('object')[0];
+            if ( divElementBischeim.offsetWidth > 800 ) {
+                vizElementBischeim.style.minWidth='420px';
+                vizElementBischeim.style.maxWidth='550px';
+                vizElementBischeim.style.width='100%';
+                vizElementBischeim.style.minHeight='487px';
+                vizElementBischeim.style.maxHeight='887px';
+                vizElementBischeim.style.height=(divElementBischeim.offsetWidth*0.75)+'px';
+            } else if ( divElementBischeim.offsetWidth > 500 ) {
+                vizElementBischeim.style.minWidth='420px';
+                vizElementBischeim.style.maxWidth='550px';
+                vizElementBischeim.style.width='100%';
+                vizElementBischeim.style.minHeight='487px';
+                vizElementBischeim.style.maxHeight='887px';
+                vizElementBischeim.style.height=(divElementBischeim.offsetWidth*0.75)+'px';
+            } else {
+                vizElementBischeim.style.width='100%';
+                vizElementBischeim.style.height='627px';
+            }
+            var scriptElementBischeim = document.createElement('script');
+            scriptElementBischeim.src = 'https://public.tableau.com/javascripts/api/viz_v1.js';
+            vizElementBischeim.parentNode.insertBefore(scriptElementBischeim, vizElementBischeim);
+
+            function showQuartierStats(quartierName) {
+                let vizContainer;
+                if (quartierName === 'ESPLA') {
+                    vizContainer = document.getElementById('viz1731761660252');
+                } else if (quartierName === 'BISCHEIM') {
+                    vizContainer = document.getElementById('viz1731804731218');
+                }
+
+                if (vizContainer) {
+                    document.getElementById('map').style.display = 'none';
+                    vizContainer.style.display = 'block';
+                    let vizElement = vizContainer.getElementsByTagName('object')[0];
+                    if (vizElement) {
+                        vizElement.style.width = '100%';
+                        vizElement.style.height = '100vh';
+                    }
+                    document.getElementById('back-to-map').style.display = 'block';
+                } else {
+                    console.log('Pas de statistiques disponibles pour ce quartier');
+                }
+            }
+            
+            function showTutorial() {
+    const steps = [
+        {
+            title: 'Bienvenue !',
+            text: "Cette carte interactive permet de visualiser la répartition des pistes cyclables de Strasbourg.",
+            icon: 'info'
+        },
+        {
+            title: 'Lecture de la carte',
+            text: 'Il est possible de se déplacer, de zoomer et de cliquer sur les quartiers pour accéder aux informations.',
+            icon: 'map'
+        },
+        {
+            title: 'Obtenir plus d\'informations sur un quartier',
+            text: 'Au clic sur un quartier, des informations supplémentaires sont disponibles à l\'échelle de chaque quartier.',
+            icon: 'info-circle'
+        },
+        {
+            title: 'Obtenir plus d\'informations sur un quartier',
+            text: 'Le graphe est une représentation de l\'ensemble des tronçons cyclables, en fonction de deux variables.',
+            icon: 'info-circle'
+        },
+        {
+            title: '1er variable : La Sur et Sous fréquentation',
+            text: 'Cette variable est issus d\'un calcul relatif entre la fréquentation réelles de chaque tronçon puis de la fréquentation théoriques (méthode de calcul issus des chemins les plus court). Si la valeur réelles est superieur alors c\'est considérée comme sur-fréquentée par rapport au chemin théorique, et inversement.',
+            text: 'Cette variable est issue d\'un calcul qui compare la fréquentation réelle de chaque tronçon à sa fréquentation théorique (méthode de calcul basé sur les chemins les plus court). Si la valeur réelle d\'un tronçon est supérieure a la théorique, ce tronçon est considéré comme étant sur-fréquenté par rapport au chemin théorique, et inversement.',
+            icon: 'info-circle'
+        },
+        {
+            title: '2e variable : Le ressenti des cyclistes',
+            text: 'Base de données issus du site internet https://pedaleurs-pedaleuses.fr/, indiquant le ressenti moyen des cyclistes quant à l\'utilisation de ce tronçon.',
+            icon: 'info-circle'
+        },
+        {
+            title: 'Page web réalisée par',
+            text: 'TAMBADOU Alhassane, WIESER Axel, ADANDE Maxime Rinaldo, BLANCHARD Daniel',
+            icon: 'user-graduate'
+        }
+    ];
+
+    let currentStep = 0;
+
+    function showStep(step) {
+        Swal.fire({
+            title: steps[step].title,
+            text: steps[step].text,
+            icon: steps[step].icon,
+            confirmButtonText: step < steps.length - 1 ? 'Suivant' : 'Terminer',
+            showCancelButton: true,
+            cancelButtonText: 'Quitter',
+            reverseButtons: true,
+            allowOutsideClick: false,
+            customClass: {
+                container: 'tutorial-swal-container',
+                popup: 'tutorial-swal-popup',
+                header: 'tutorial-swal-header',
+                title: 'tutorial-swal-title',
+                closeButton: 'tutorial-swal-close',
+                icon: 'tutorial-swal-icon',
+                image: 'tutorial-swal-image',
+                content: 'tutorial-swal-content',
+                input: 'tutorial-swal-input',
+                actions: 'tutorial-swal-actions',
+                confirmButton: 'tutorial-swal-confirm',
+                cancelButton: 'tutorial-swal-cancel',
+                footer: 'tutorial-swal-footer'
+            },
+            showClass: {
+                popup: 'animate__animated animate__fadeInDown'
+            },
+            hideClass: {
+                popup: 'animate__animated animate__fadeOutUp'
+            }
+        }).then((result) => {
+            if (result.isConfirmed && step < steps.length - 1) {
+                showStep(step + 1);
+            }
+        });
+    }
+
+    showStep(0);
+}
+
+window.onload = function() {
+    showTutorial();
+    // Autres fonctions à exécuter au chargement si nécessaire
+};
+
+// Gestionnaire d'événements pour le bouton de tutoriel
+        document.getElementById('tutorial-button').addEventListener('click', showTutorial);
+                        
+        </script>
+    </body>
+</html>
